@@ -137,6 +137,7 @@ void listEntries(Calendar *calendar)
             list->amount += 1;
         }
         Entry *earliest;
+        printf("\n");
         while (list->amount > 1)
         {
             earliest = list->entries;
@@ -174,6 +175,43 @@ void listEntries(Calendar *calendar)
     {
         printf("Calendar is empty");
     }
+}
+
+int saveCalendar(Calendar *calendar, char *filename)
+{
+    FILE *fp = fopen(filename, "w");
+    if (!fp)
+    {
+        printf("Error while opening file");
+        return 0;
+    }
+    fwrite(&calendar->size, sizeof(int), 1, fp);
+    fwrite(&calendar->amount, sizeof(int), 1, fp);
+    fwrite(calendar->entries, sizeof(Entry), calendar->size, fp);
+    fclose(fp);
+    return 1;
+}
+
+Calendar *loadCalendar(char *filename)
+{
+    FILE *fp = fopen(filename, "r");
+    if (!fp)
+    {
+        printf("Error while opening file");
+        return NULL;
+    }
+    int size;
+    int amount;
+    fread(&size, sizeof(int), 1, fp);
+    fread(&amount, sizeof(int), 1, fp);
+    //printf("size: %d\n", size);
+    //printf("amount: %d\n", amount);
+    Calendar *calendar = initCalendar(size);
+    calendar->size = size;
+    calendar->amount = amount;
+    fread(calendar->entries, sizeof(Entry), calendar->amount, fp);
+    fclose(fp);
+    return calendar;
 }
 
 void freeParseArray(char **arr, int rows, int descr)
@@ -353,8 +391,18 @@ int main(void)
             listEntries(calendar);
             break;
         case 'W':
+            if (saveCalendar(calendar, "seivi"))
+            {
+                printf("Save successful");
+            }
+            else
+            {
+                printf("Save failed");
+            }
             break;
         case 'O':
+            freeCalendar(calendar);
+            calendar = loadCalendar("seivi");
             break;
         case 'Q':
             exit = 1;
