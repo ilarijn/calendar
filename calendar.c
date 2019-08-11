@@ -185,9 +185,11 @@ int saveCalendar(Calendar *calendar, char *filename)
         printf("Error while opening file");
         return 0;
     }
+    // "Most straightforward way is to write the fields of the struct individually instead of writing the whole struct at once."
+    // Valgrind uninitialised bytes error
     fwrite(&calendar->size, sizeof(int), 1, fp);
     fwrite(&calendar->amount, sizeof(int), 1, fp);
-    fwrite(calendar->entries, sizeof(Entry), calendar->size, fp);
+    fwrite(calendar->entries, sizeof(Entry), calendar->amount, fp);
     fclose(fp);
     return 1;
 }
@@ -325,7 +327,7 @@ Entry *parseEntry(char *str, int descr)
         date.month = month;
         date.day = day;
         date.hour = hour;
-        Entry *entry = malloc(sizeof(Entry));
+        Entry *entry = calloc(1, sizeof(Entry));
         entry->date = date;
         if (descr)
         {
