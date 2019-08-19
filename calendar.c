@@ -4,10 +4,9 @@
 #include <stdlib.h>
 
 /* 
-gcc -Wvla -Wall -g -std=c99 -o projekti projekti.c 
-
-valgrind --track-origins=yes --leak-check=full ./projekti
-valgrind --tool=memcheck --track-origins=yes ./projekti
+gcc -Wvla -Wall -g -std=c99 -o calendar calendar.c 
+valgrind --track-origins=yes --leak-check=full ./calendar
+valgrind --tool=memcheck --track-origins=yes ./calendar
 */
 
 typedef struct
@@ -91,6 +90,13 @@ int addEntry(Calendar *calendar, Entry *new_entry)
     return 1;
 }
 
+/*
+Deleting an entry from the calendar occurs by copying
+the fields (except for the index) of the last entry
+to the location of the entry to be deleted. 
+If the entry to be deleted is the last one,
+the amount of entries is simply decremented by 1. 
+*/
 int deleteEntry(Calendar *calendar, Entry *entry)
 {
     Entry *deletee = entryExists(calendar, entry);
@@ -119,8 +125,8 @@ void printEntry(Entry *entry)
 
 /*
 Copies the main calendar and prints entries in order
-from the copy, deleting the current earliest entry 
-after printing it.
+from the copy, deleting from the copy the current earliest 
+entry after printing it.
  */
 void listEntries(Calendar *calendar)
 {
@@ -177,150 +183,105 @@ void listEntries(Calendar *calendar)
     }
 }
 
-int saveCalendar(Calendar *calendar, char *filename)
+void freeCommandArr(char **command)
 {
-    FILE *fp = fopen(filename, "w");
-    if (!fp)
+    if (command != NULL)
     {
-        printf("Error while opening file");
-        return 0;
+        for (int i = 0; i <= 3; i++)
+        {
+            free(command[i]);
+        }
+        free(command);
     }
-    // "Most straightforward way is to write the fields of the struct individually instead of writing the whole struct at once."
-    // Valgrind uninitialised bytes error
-    fwrite(&calendar->size, sizeof(int), 1, fp);
-    fwrite(&calendar->amount, sizeof(int), 1, fp);
-    fwrite(calendar->entries, sizeof(Entry), calendar->amount, fp);
-    fclose(fp);
-    return 1;
-}
-
-Calendar *loadCalendar(char *filename)
-{
-    FILE *fp = fopen(filename, "r");
-    if (!fp)
-    {
-        printf("Error while opening file");
-        return NULL;
-    }
-    int size;
-    int amount;
-    fread(&size, sizeof(int), 1, fp);
-    fread(&amount, sizeof(int), 1, fp);
-    //printf("size: %d\n", size);
-    //printf("amount: %d\n", amount);
-    Calendar *calendar = initCalendar(size);
-    calendar->size = size;
-    calendar->amount = amount;
-    fread(calendar->entries, sizeof(Entry), calendar->amount, fp);
-    fclose(fp);
-    return calendar;
-}
-
-void freeParseArray(char **arr, int rows, int descr)
-{
-    for (int i = 0; i < rows; i++)
-    {
-        free(arr[i]);
-    }
-    if (descr)
-        free(arr[3]);
-    free(arr);
 }
 
 /*
-Parses the command string into an array of three or four separate strings.
-If value of parameter "descr" is 1, a description string is assumed to exist
-and placed in the fourth string.
-The first three strings in the array are assumed to be 1 or 2 characters long.
-All four strings are assumed to be separated by whitespaces in char* str with
-a newline at the end.
+Parses the command string into an array of four strings.
+The first string is assumed to be not more than 80 characters 
+long including the null character. The other strings are assumed 
+to be max 3 characters long including the null character.
  */
-char **parseSpaces(char *str, int descr)
+char **parseCommand(char *command)
 {
-    if (*(++str) != ' ')
+    command++;
+    if (!*command || *command != ' ')
     {
         printf("Error: invalid command format");
         return NULL;
     }
-    char **res = malloc(sizeof(char *) * (3 + descr));
-    if (descr)
+    char **res = malloc(4 * sizeof(char *));
+    res[0] = malloc(80 * sizeof(char));
+    res[1] = malloc(3 * sizeof(char));
+    res[2] = malloc(3 * sizeof(char));
+    res[3] = malloc(3 * sizeof(char));
+    res[0][0] = '\0';
+    res[1][0] = '\0';
+    res[2][0] = '\0';
+    res[3][0] = '\0';
+    for (int i = 0; i <= 3; i++)
     {
-        res[3] = malloc(sizeof(char) * 80);
-        int i = 0;
-        while (*(str + 1) != ' ' && *(str + 1) != '\n')
+        command++;
+        int j = 0;
+        while (*command && (*command != ' ' && *command != '\n'))
         {
-            str++;
-            res[3][i] = *str;
-            i++;
+            j++;
+            if ((i > 0 && j > 2) || j > 79)
+            {
+                printf("Error: invalid command format");
+                freeCommandArr(res);
+                return NULL;
+            }
+            strncat(res[i], command, 1);
+            command++;
         }
-        str++;
-        res[3][i] = '\0';
-    }
-    for (int i = 0; i <= 2; i++)
-    {
-        if (*str != ' ')
+        if (*command == '\n')
         {
-            printf("Error: invalid command format");
-            freeParseArray(res, i, descr);
-            return NULL;
-        }
-        str++;
-        if (i == 2 && *(str + 2) != '\n' && *(str + 1) != '\n')
-        {
-            printf("Error: invalid command format");
-            freeParseArray(res, i, descr);
-            return NULL;
-        }
-        res[i] = malloc(sizeof(char) * 3);
-        //Add null char for strncat()
-        res[i][0] = '\0';
-        if (*(str + 1) == ' ')
-        {
-            strncat(res[i], str, 1);
-            str++;
-        }
-        else
-        {
-            strncat(res[i], str, 2);
-            str += 2;
+            i = 3;
         }
     }
     return res;
 }
 
 /*
-If descr is 0, no description string is assumed
-and the created Entry struct will be initialized
+Parses a calendar entry from the output of parseCommand().
+If descr is 0, no description string is assumed and 
+the created Entry struct will be initialized
 with a null character as its description.
  */
-Entry *parseEntry(char *str, int descr)
+Entry *parseEntry(char *command, int descr)
 {
-    char **pieces = parseSpaces(str, descr);
+    char **pieces = parseCommand(command);
     if (pieces != NULL)
     {
-        int month = atoi(pieces[0]);
-        if (month > 12 || month < 1)
+        if (descr && pieces[0][0] == '\0')
         {
-            printf("Error: invalid month");
-            freeParseArray(pieces, 3, descr);
+            printf("Error: description cannot be empty");
+            freeCommandArr(pieces);
             return NULL;
         }
-        int day = atoi(pieces[1]);
-        if (day > 31 || day < 1)
+        int month = atoi(pieces[0 + descr]);
+        if (month > 12 || month < 1 || pieces[0 + descr][0] == '\0')
         {
-            printf("Error: invalid day");
-            freeParseArray(pieces, 3, descr);
+            printf("Error: invalid or missing month");
+            freeCommandArr(pieces);
             return NULL;
         }
-        int hour = atoi(pieces[2]);
+        int day = atoi(pieces[1 + descr]);
+        if (day > 31 || day < 1 || pieces[1 + descr][0] == '\0')
+        {
+            printf("Error: invalid or missing day");
+            freeCommandArr(pieces);
+            return NULL;
+        }
+        int hour = atoi(pieces[2 + descr]);
         if (hour == 24)
         {
             hour = 0;
         }
-        else if (hour > 23 || hour < 0)
+        else if (hour > 23 || hour < 0 || pieces[2 + descr][0] == '\0')
         {
-            printf("Error: invalid hour");
-            freeParseArray(pieces, 3, descr);
+            printf("Error: invalid or missing hour");
+            freeCommandArr(pieces);
             return NULL;
         }
         Date date;
@@ -331,17 +292,61 @@ Entry *parseEntry(char *str, int descr)
         entry->date = date;
         if (descr)
         {
-            strcpy(entry->descr, pieces[3]);
+            strcpy(entry->descr, pieces[0]);
         }
         else
         {
             strcpy(entry->descr, "\0");
         }
-        freeParseArray(pieces, 3, descr);
+        freeCommandArr(pieces);
         return entry;
     }
     free(pieces);
     return NULL;
+}
+
+int saveCalendar(Calendar *calendar, char *command)
+{
+    char **pieces = parseCommand(command);
+    char *filename = pieces[0];
+    FILE *fp = fopen(filename, "w");
+    if (!fp)
+    {
+        freeCommandArr(pieces);
+        printf("Error while saving to file");
+        return 0;
+    }
+    fwrite(&calendar->size, sizeof(int), 1, fp);
+    fwrite(&calendar->amount, sizeof(int), 1, fp);
+    fwrite(calendar->entries, sizeof(Entry), calendar->amount, fp);
+    fclose(fp);
+    freeCommandArr(pieces);
+    return 1;
+}
+
+Calendar *loadCalendar(char *filename)
+{
+    FILE *fp = fopen(filename, "r");
+    if (fp == NULL)
+    {
+        printf("File does not exist");
+        return NULL;
+    }
+    if (!fp)
+    {
+        printf("Error while opening file");
+        return NULL;
+    }
+    int size;
+    int amount;
+    fread(&size, sizeof(int), 1, fp);
+    fread(&amount, sizeof(int), 1, fp);
+    Calendar *calendar = initCalendar(size);
+    calendar->size = size;
+    calendar->amount = amount;
+    fread(calendar->entries, sizeof(Entry), calendar->amount, fp);
+    fclose(fp);
+    return calendar;
 }
 
 int main(void)
@@ -393,21 +398,40 @@ int main(void)
             listEntries(calendar);
             break;
         case 'W':
-            if (saveCalendar(calendar, "seivi"))
+            if (saveCalendar(calendar, command))
             {
-                printf("Save successful");
+                printf("Calendar saved");
             }
             else
             {
                 printf("Save failed");
             }
             break;
-        case 'O':
-            freeCalendar(calendar);
-            calendar = loadCalendar("seivi");
+        case 'O':;
+            char **pieces = parseCommand(command);
+            if (pieces != NULL)
+            {
+                if (pieces[0][0] == '\0')
+                {
+                    printf("No file name given");
+                }
+                else
+                {
+                    char *filename = pieces[0];
+                    Calendar *new_calendar = loadCalendar(filename);
+                    if (new_calendar != NULL)
+                    {
+                        freeCalendar(calendar);
+                        calendar = new_calendar;
+                        printf("Calendar loaded");
+                    }
+                }
+            }
+            freeCommandArr(pieces);
             break;
         case 'Q':
             exit = 1;
+            printf("Bye!\n");
             break;
         default:
             printf("Invalid command");
