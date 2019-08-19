@@ -305,14 +305,11 @@ Entry *parseEntry(char *command, int descr)
     return NULL;
 }
 
-int saveCalendar(Calendar *calendar, char *command)
+int saveCalendar(Calendar *calendar, char *filename)
 {
-    char **pieces = parseCommand(command);
-    char *filename = pieces[0];
     FILE *fp = fopen(filename, "w");
     if (!fp)
     {
-        freeCommandArr(pieces);
         printf("Error while saving to file");
         return 0;
     }
@@ -320,7 +317,6 @@ int saveCalendar(Calendar *calendar, char *command)
     fwrite(&calendar->amount, sizeof(int), 1, fp);
     fwrite(calendar->entries, sizeof(Entry), calendar->amount, fp);
     fclose(fp);
-    freeCommandArr(pieces);
     return 1;
 }
 
@@ -347,6 +343,31 @@ Calendar *loadCalendar(char *filename)
     fread(calendar->entries, sizeof(Entry), calendar->amount, fp);
     fclose(fp);
     return calendar;
+}
+
+char *fileNameCheck(char *command)
+{
+    char **pieces = parseCommand(command);
+    char *filename;
+    if (pieces != NULL)
+    {
+        if (pieces[0][0] == '\0')
+        {
+            printf("No file name given");
+            freeCommandArr(pieces);
+            return NULL;
+        }
+        else
+        {
+            int len = strlen(pieces[0]) + 1;
+            filename = malloc(len * sizeof(char));
+            strcpy(filename, pieces[0]);
+            freeCommandArr(pieces);
+            return filename;
+        }
+    }
+    freeCommandArr(pieces);
+    return NULL;
 }
 
 int main(void)
@@ -397,37 +418,34 @@ int main(void)
         case 'L':
             listEntries(calendar);
             break;
-        case 'W':
-            if (saveCalendar(calendar, command))
+        case 'W':;
+            char *savefile = fileNameCheck(command);
+            if (savefile != NULL)
             {
-                printf("Calendar saved");
-            }
-            else
-            {
-                printf("Save failed");
-            }
-            break;
-        case 'O':;
-            char **pieces = parseCommand(command);
-            if (pieces != NULL)
-            {
-                if (pieces[0][0] == '\0')
+                if (saveCalendar(calendar, savefile))
                 {
-                    printf("No file name given");
+                    printf("Calendar saved");
                 }
                 else
                 {
-                    char *filename = pieces[0];
-                    Calendar *new_calendar = loadCalendar(filename);
-                    if (new_calendar != NULL)
-                    {
-                        freeCalendar(calendar);
-                        calendar = new_calendar;
-                        printf("Calendar loaded");
-                    }
+                    printf("Save failed");
                 }
             }
-            freeCommandArr(pieces);
+            free(savefile);
+            break;
+        case 'O':;
+            char *filename = fileNameCheck(command);
+            if (filename != NULL)
+            {
+                Calendar *new_calendar = loadCalendar(filename);
+                if (new_calendar != NULL)
+                {
+                    freeCalendar(calendar);
+                    calendar = new_calendar;
+                    printf("Calendar loaded");
+                }
+            }
+            free(filename);
             break;
         case 'Q':
             exit = 1;
