@@ -119,7 +119,7 @@ int deleteEntry(Calendar *calendar, Entry *entry)
 
 void printEntry(Entry *entry)
 {
-    printf("%s %02d.%02d. klo %02d\n",
+    printf("%s %02d.%02d. at %02d\n",
            entry->descr, entry->date.day, entry->date.month, entry->date.hour);
 }
 
@@ -380,7 +380,8 @@ int main(void)
     printf(" \\___\\__,_|_|\\___|_| |_|\\__,_|\\__,_|_|   \n\n");
     printf("(A)dd an entry          (W)rite to file\n");
     printf("(D)elete an entry       (O)pen from file\n");
-    printf("(L)ist all entries      (Q)uit\n");
+    printf("(L)ist all entries      (H)elp\n");
+    printf("(Q)uit\n");
 
     Calendar *calendar = initCalendar(1);
     int exit = 0;
@@ -446,6 +447,9 @@ int main(void)
                 }
             }
             free(filename);
+            break;
+        case 'H':
+            printf("\nAdd an entry: A <description> <m> <d> <h> e.g. \"A clean 10 24 15\"\nDelete an entry: D <m> <d> <h>\nSave calendar to file: W <filename>\nOpen calendar from file: O <filename>\nList entries: L\n");
             break;
         case 'Q':
             exit = 1;
