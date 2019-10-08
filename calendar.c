@@ -6,7 +6,6 @@
 /* 
 gcc -Wvla -Wall -g -std=c99 -o calendar calendar.c 
 valgrind --track-origins=yes --leak-check=full ./calendar
-valgrind --tool=memcheck --track-origins=yes ./calendar
 */
 
 typedef struct
